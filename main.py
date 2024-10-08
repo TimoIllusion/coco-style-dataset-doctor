@@ -182,6 +182,13 @@ class CocoDatasetGUI(ctk.CTk):
             )
 
     def update_info_textbox(self):
+        num_total_annotations = len(self.coco.dataset["annotations"])
+        num_images = len(self.coco.dataset["images"])
+
+        self.dataset_info = f""
+        self.dataset_info += f"Number of images: {num_images}\n"
+        self.dataset_info += f"Number of annotations: {num_total_annotations}\n"
+
         self.info_textbox.configure(state="normal")
         self.info_textbox.delete("1.0", tk.END)
         self.info_textbox.insert("1.0", self.dataset_info)
@@ -544,7 +551,7 @@ class CocoDatasetGUI(ctk.CTk):
     def apply_class_changes(self):
         # Collect new IDs and deletions
         new_ids = {}
-        delete_ids = []
+        delete_category_ids = []
         existing_ids = set(self.coco.getCatIds())
 
         # First, collect new IDs and check for conflicts
@@ -577,13 +584,13 @@ class CocoDatasetGUI(ctk.CTk):
         # Collect categories to delete
         for cat_id, var in self.class_delete_vars.items():
             if var.get():
-                delete_ids.append(cat_id)
+                delete_category_ids.append(cat_id)
 
         # Confirm deletion
-        if delete_ids:
+        if delete_category_ids:
             result = messagebox.askyesno(
                 "Confirm Deletion",
-                f"Are you sure you want to delete categories {delete_ids}? This will remove all associated annotations.",
+                f"Are you sure you want to delete categories {delete_category_ids}? This will remove all associated annotations.",
             )
             if not result:
                 return
@@ -608,39 +615,37 @@ class CocoDatasetGUI(ctk.CTk):
                 existing_ids.add(new_id)
 
         # Delete categories and associated annotations
-        if delete_ids:
+        if delete_category_ids:
             # Remove categories
             self.coco.dataset["categories"] = [
                 cat
                 for cat in self.coco.dataset["categories"]
-                if cat["id"] not in delete_ids
+                if cat["id"] not in delete_category_ids
             ]
             # Remove annotations
             self.coco.dataset["annotations"] = [
                 ann
                 for ann in self.coco.dataset["annotations"]
-                if ann["category_id"] not in delete_ids
+                if ann["category_id"] not in delete_category_ids
             ]
             # Remove class colors
-            for del_id in delete_ids:
+            for del_id in delete_category_ids:
                 if del_id in self.class_colors:
                     del self.class_colors[del_id]
-            existing_ids = existing_ids.difference(set(delete_ids))
+            existing_ids = existing_ids.difference(set(delete_category_ids))
 
         # Rebuild the index
         self.coco.createIndex()
 
-        # Update class colors
         self.assign_class_colors()
 
-        # Update class list
         self.update_classes_textbox()
 
-        # Refresh the display
         self.display_sample(self.current_index)
 
-        # Close the manage window
         self.manage_window.destroy()
+
+        self.update_info_textbox()
 
     def export_modified_annotations(self):
         # Default output filename
