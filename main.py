@@ -26,6 +26,8 @@ class CocoDatasetGUI(ctk.CTk):
         self.current_index = 0
         self.annotation_file = None  # Added to store the original annotation file path
 
+        self.dataset_info = f"<INFO PLACEHOLDER>"
+
         # Class colors
         self.class_colors = {}
         self.classes = []
@@ -143,7 +145,6 @@ class CocoDatasetGUI(ctk.CTk):
             self.assign_class_colors()
 
             # Update dataset information
-            self.dataset_info = f"Total Images: {len(self.image_ids)}"
             self.update_info_textbox()
             self.update_classes_textbox()
             self.update_image_index_label()
@@ -213,7 +214,10 @@ class CocoDatasetGUI(ctk.CTk):
             draw.rectangle([x, y, x + w, y + h], outline=outline_color, width=2)
 
             # Get class id
-            label = f"{cat_id}"
+
+            category_name = self.coco.loadCats(cat_id)[0]["name"]
+
+            label = f"{category_name}"
 
             # Calculate text size
             text_bbox = draw.textbbox((x, y), label, font=font)
@@ -283,7 +287,6 @@ class CocoDatasetGUI(ctk.CTk):
             self.merge_datasets(new_coco, new_image_folder, category_mapping)
 
             # Update dataset information
-            self.dataset_info = f"Total Images: {len(self.image_ids)}"
             self.update_info_textbox()
             self.update_classes_textbox()
             self.update_image_index_label()
@@ -342,7 +345,8 @@ class CocoDatasetGUI(ctk.CTk):
 
             # Display new category ID and name
             label = ctk.CTkLabel(
-                scrollable_frame, text=f"New Cat ID: {new_cat_id}, Name: {new_cat_name}"
+                scrollable_frame,
+                text=f"Imported Category -> ID: {new_cat_id}, Name: {new_cat_name}",
             )
             label.grid(row=row, column=0, padx=5, pady=5, sticky="w")
 
