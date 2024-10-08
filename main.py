@@ -85,14 +85,6 @@ class CocoDatasetGUI(ctk.CTk):
         self.control_frame = ctk.CTkFrame(master=self.frame)
         self.control_frame.pack(pady=10, padx=10, fill="x")
 
-        # Button to change class ID of annotations
-        self.change_class_button = ctk.CTkButton(
-            master=self.control_frame,
-            text="Change Class ID",
-            command=self.change_class_id,
-        )
-        self.change_class_button.pack(side="left", padx=10)
-
         # Button to add another dataset
         self.add_dataset_button = ctk.CTkButton(
             master=self.control_frame,
@@ -169,7 +161,7 @@ class CocoDatasetGUI(ctk.CTk):
         self.classes_textbox.configure(state="normal")
         self.classes_textbox.delete("1.0", tk.END)
         self.classes_textbox.insert("1.0", "Classes:\n")
-        for cat_id in self.coco.getCatIds():
+        for cat_id in sorted(self.coco.getCatIds()):
             cat = self.coco.loadCats(cat_id)[0]
             self.classes_textbox.insert(tk.END, f"{cat_id}: {cat['name']}\n")
         self.classes_textbox.configure(state="disabled")
@@ -248,52 +240,6 @@ class CocoDatasetGUI(ctk.CTk):
         self.current_index = (self.current_index - 1) % len(self.image_ids)
         self.display_sample(self.current_index)
 
-    def change_class_id(self):
-        if not self.image_ids:
-            return
-
-        # Get current image annotations
-        img_id = self.image_ids[self.current_index]
-        ann_ids = self.coco.getAnnIds(imgIds=img_id)
-        anns = self.coco.loadAnns(ann_ids)
-
-        # Prompt user to select an annotation
-        ann_options = [f"ID {ann['id']}: Cat {ann['category_id']}" for ann in anns]
-        if not ann_options:
-            messagebox.showinfo("Info", "No annotations to change.")
-            return
-
-        selected_ann = simpledialog.askstring(
-            "Select Annotation",
-            "Available Annotations:\n"
-            + "\n".join(ann_options)
-            + "\n\nEnter Annotation ID to change:",
-        )
-        if not selected_ann:
-            return
-        try:
-            selected_ann_id = int(selected_ann)
-        except ValueError:
-            messagebox.showerror("Error", "Invalid annotation ID.")
-            return
-
-        # Check if the annotation ID exists
-        ann = next((a for a in anns if a["id"] == selected_ann_id), None)
-        if not ann:
-            messagebox.showerror("Error", "Annotation ID not found.")
-            return
-
-        # Prompt for new class ID
-        new_class_id = simpledialog.askinteger("New Class ID", "Enter new class ID:")
-        if new_class_id is None:
-            return
-
-        # Change the class ID
-        ann["category_id"] = new_class_id
-
-        # Update the display
-        self.display_sample(self.current_index)
-
     def add_dataset(self):
         # File dialog to select additional annotation file
         annotation_file = filedialog.askopenfilename(
@@ -318,8 +264,11 @@ class CocoDatasetGUI(ctk.CTk):
             new_image_folder = image_folder
             new_image_ids = new_coco.getImgIds()
 
+            # Map categories
+            category_mapping = self.map_categories(new_coco)
+
             # Merge datasets
-            self.merge_datasets(new_coco, new_image_folder)
+            self.merge_datasets(new_coco, new_image_folder, category_mapping)
 
             # Update dataset information
             self.dataset_info = f"Total Images: {len(self.image_ids)}"
@@ -332,7 +281,125 @@ class CocoDatasetGUI(ctk.CTk):
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load additional dataset: {e}")
 
-    def merge_datasets(self, new_coco, new_image_folder):
+    def map_categories(self, new_coco):
+        # Open a new window
+        self.map_window = ctk.CTkToplevel(self)
+        self.map_window.title("Map Categories")
+        self.map_window.geometry("500x600")
+
+        # Create a scrollable frame if necessary
+        canvas = tk.Canvas(self.map_window)
+        scrollbar = tk.Scrollbar(
+            self.map_window, orient="vertical", command=canvas.yview
+        )
+        scrollable_frame = ctk.CTkFrame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # For each new category, display current ID and name, provide entry to input desired ID
+        self.category_entries = {}  # To store entries
+        row = 0
+        existing_cats = self.coco.loadCats(self.coco.getCatIds())
+        existing_cat_names = [cat["name"] for cat in existing_cats]
+        existing_cat_ids = [cat["id"] for cat in existing_cats]
+        existing_name_to_id = {
+            name: id for name, id in zip(existing_cat_names, existing_cat_ids)
+        }
+        used_ids = set(existing_cat_ids)
+
+        max_existing_id = max(existing_cat_ids) if existing_cat_ids else 0
+
+        for cat in new_coco.loadCats(new_coco.getCatIds()):
+            new_cat_id = cat["id"]
+            new_cat_name = cat["name"]
+
+            # Default ID mapping
+            if new_cat_name in existing_name_to_id:
+                default_id = existing_name_to_id[new_cat_name]
+            else:
+                max_existing_id += 1
+                default_id = max_existing_id
+
+            # Display new category ID and name
+            label = ctk.CTkLabel(
+                scrollable_frame, text=f"New Cat ID: {new_cat_id}, Name: {new_cat_name}"
+            )
+            label.grid(row=row, column=0, padx=5, pady=5, sticky="w")
+
+            # Entry field for desired ID
+            entry = ctk.CTkEntry(scrollable_frame)
+            entry.insert(0, str(default_id))
+            entry.grid(row=row, column=1, padx=5, pady=5)
+            self.category_entries[new_cat_id] = entry
+
+            row += 1
+
+        # Apply Changes button
+        apply_button = ctk.CTkButton(
+            scrollable_frame,
+            text="Apply Mappings",
+            command=self.apply_category_mappings,
+        )
+        apply_button.grid(row=row, column=0, columnspan=2, pady=10)
+
+        # Wait for the window to be closed before proceeding
+        self.map_window.grab_set()
+        self.wait_window(self.map_window)
+
+        # After window is closed, collect the mappings
+        mappings = {}
+        used_new_ids = set()
+        for new_cat_id, entry in self.category_entries.items():
+            new_id_str = entry.get()
+            try:
+                new_id = int(new_id_str)
+                if new_id in used_new_ids:
+                    messagebox.showerror(
+                        "Error",
+                        f"Duplicate ID {new_id} assigned to multiple categories.",
+                    )
+                    return self.map_categories(new_coco)  # Restart mapping
+                used_new_ids.add(new_id)
+                mappings[new_cat_id] = {
+                    "new_id": new_id,
+                    "name": new_coco.loadCats(new_cat_id)[0]["name"],
+                }
+            except ValueError:
+                messagebox.showerror(
+                    "Error", f"Invalid ID entered for category {new_cat_id}."
+                )
+                return self.map_categories(new_coco)  # Restart mapping
+
+        # Check for conflicts with existing IDs
+        conflicting_ids = used_new_ids.intersection(used_ids)
+        if conflicting_ids:
+            messagebox.showerror(
+                "Error",
+                f"Assigned IDs {conflicting_ids} conflict with existing category IDs.",
+            )
+            return self.map_categories(new_coco)  # Restart mapping
+
+        return mappings
+
+    def apply_category_mappings(self):
+        # Close the map window
+        self.map_window.destroy()
+
+    def merge_datasets(self, new_coco, new_image_folder, category_mapping):
+        # Update annotations in new_coco with mapped category IDs
+        for ann in new_coco.dataset["annotations"]:
+            new_cat_id = ann["category_id"]
+            mapped_cat = category_mapping[new_cat_id]
+            ann["category_id"] = mapped_cat["new_id"]
+
         # Merge images
         new_images = new_coco.dataset["images"]
         self.coco.dataset["images"].extend(new_images)
@@ -343,12 +410,14 @@ class CocoDatasetGUI(ctk.CTk):
         self.coco.dataset["annotations"].extend(new_annotations)
 
         # Merge categories
-        new_cats = new_coco.dataset["categories"]
         existing_cat_ids = set(self.coco.getCatIds())
-        for cat in new_cats:
-            if cat["id"] not in existing_cat_ids:
-                self.coco.dataset["categories"].append(cat)
-                existing_cat_ids.add(cat["id"])
+        for new_cat_id, mapping in category_mapping.items():
+            if mapping["new_id"] not in existing_cat_ids:
+                # It's a new category
+                new_category = new_coco.loadCats(new_cat_id)[0]
+                new_category["id"] = mapping["new_id"]
+                self.coco.dataset["categories"].append(new_category)
+                existing_cat_ids.add(mapping["new_id"])
 
         # Rebuild index
         self.coco.createIndex()
@@ -423,11 +492,18 @@ class CocoDatasetGUI(ctk.CTk):
         existing_ids = set(self.coco.getCatIds())
 
         # First, collect new IDs and check for conflicts
+        used_new_ids = set()
         for cat_id, entry in self.class_entries.items():
             new_id_str = entry.get()
             if new_id_str:
                 try:
                     new_id = int(new_id_str)
+                    if new_id in used_new_ids:
+                        messagebox.showerror(
+                            "Error",
+                            f"Duplicate new ID {new_id} assigned to multiple categories.",
+                        )
+                        return
                     if new_id in existing_ids and new_id != cat_id:
                         messagebox.showerror(
                             "Error",
@@ -435,6 +511,7 @@ class CocoDatasetGUI(ctk.CTk):
                         )
                         return
                     new_ids[cat_id] = new_id
+                    used_new_ids.add(new_id)
                 except ValueError:
                     messagebox.showerror(
                         "Error", f"Invalid ID entered for category {cat_id}."
