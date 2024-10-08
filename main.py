@@ -125,6 +125,15 @@ class CocoDatasetGUI(ctk.CTk):
         )
         self.export_dataset_button.pack(side="left", padx=10)
 
+        # Add a button to delete the current image
+        self.delete_image_button = ctk.CTkButton(
+            master=self.control_frame,
+            text="Delete Current Image",
+            command=self.delete_current_image,
+            fg_color="red",
+        )
+        self.delete_image_button.pack(side="left", padx=10)
+
     def select_files(self):
         # File dialog to select annotation file
         annotation_file = filedialog.askopenfilename(
@@ -180,6 +189,58 @@ class CocoDatasetGUI(ctk.CTk):
                 random.randint(0, 255),
                 random.randint(0, 255),
             )
+
+    def delete_current_image(self):
+        if not self.image_ids:
+            return
+
+        # ask yes/no confirmation
+        result = messagebox.askyesno(
+            "Confirm Deletion", "Are you sure you want to delete the current image?"
+        )
+        if not result:
+            return
+
+        # Get the image ID and remove it from the dataset
+        current_image_id = self.image_ids[self.current_index]
+
+        # Remove image from dataset
+        self.coco.dataset["images"] = [
+            img for img in self.coco.dataset["images"] if img["id"] != current_image_id
+        ]
+
+        # Remove annotations for the current image
+        self.coco.dataset["annotations"] = [
+            ann
+            for ann in self.coco.dataset["annotations"]
+            if ann["image_id"] != current_image_id
+        ]
+
+        # Remove the image from image_ids and image_id_to_path
+        del self.image_id_to_path[current_image_id]
+        del self.image_ids[self.current_index]
+
+        # If there are no more images, show a message and reset
+        if not self.image_ids:
+            messagebox.showinfo("Info", "No more images in the dataset.")
+            self.image_label.configure(image="")
+            self.image_index_label.configure(text="Image 0/0")
+            self.dataset_info = ""
+            self.info_textbox.configure(state="normal")
+            self.info_textbox.delete("1.0", tk.END)
+            self.info_textbox.configure(state="disabled")
+            return
+
+        # Adjust the current index if necessary
+        if self.current_index >= len(self.image_ids):
+            self.current_index = len(self.image_ids) - 1
+
+        # Rebuild the index after deletion
+        self.coco.createIndex()
+
+        # Update the display
+        self.update_info_textbox()
+        self.display_sample(self.current_index)
 
     def update_info_textbox(self):
         num_total_annotations = len(self.coco.dataset["annotations"])
@@ -707,8 +768,6 @@ class CocoDatasetGUI(ctk.CTk):
             return
 
         messagebox.showinfo("Success", f"Dataset exported to {output_dir}")
-
-    # Additional methods can be added here
 
 
 if __name__ == "__main__":
