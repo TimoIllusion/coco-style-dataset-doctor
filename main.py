@@ -284,13 +284,12 @@ class CocoDatasetGUI(ctk.CTk):
         # Load additional COCO dataset
         try:
             new_coco = COCO(annotation_file)
-            new_image_folder = image_folder
-            new_image_ids = new_coco.getImgIds()
 
             # Check if category IDs match
             if self.categories_match(new_coco):
                 # Merge datasets
-                self.merge_datasets(new_coco, new_image_folder)
+                self.merge_datasets(new_coco)
+
                 # Update dataset information
                 self.update_info_textbox()
                 self.update_classes_textbox()
@@ -318,12 +317,13 @@ class CocoDatasetGUI(ctk.CTk):
         # Check if the category IDs match
         return existing_cat_ids == new_cat_ids
 
-    def merge_datasets(self, new_coco, new_image_folder):
+    def merge_datasets(self, new_coco):
         # Merge images
-        new_images = new_coco.dataset["images"]
+        new_image_ids = new_coco.getImgIds()
+        new_images = new_coco.loadImgs(new_image_ids)
 
         # Get the max image ID in existing dataset
-        existing_image_ids = [img["id"] for img in self.coco.dataset["images"]]
+        existing_image_ids = self.coco.getImgIds()
         if existing_image_ids:
             max_existing_image_id = max(existing_image_ids)
         else:
@@ -337,21 +337,17 @@ class CocoDatasetGUI(ctk.CTk):
             img["id"] = new_id
             image_id_mapping[old_id] = new_id
             # Update image path
-            image_path = os.path.join(new_image_folder, img["file_name"])
+            image_path = img["file_name"]
             self.image_id_to_path[new_id] = image_path
 
         # Update annotations in new_coco with new image IDs
-        for ann in new_coco.dataset["annotations"]:
+        new_ann_ids = new_coco.getAnnIds()
+        new_annotations = new_coco.loadAnns(new_ann_ids)
+        for ann in new_annotations:
             ann["image_id"] = image_id_mapping[ann["image_id"]]
 
-        self.coco.dataset["images"].extend(new_images)
-        self.image_ids.extend([img["id"] for img in new_images])
-
-        # Merge annotations
-        new_annotations = new_coco.dataset["annotations"]
-
         # Get the max annotation ID in existing dataset
-        existing_ann_ids = [ann["id"] for ann in self.coco.dataset["annotations"]]
+        existing_ann_ids = self.coco.getAnnIds()
         if existing_ann_ids:
             max_existing_ann_id = max(existing_ann_ids)
         else:
@@ -361,7 +357,10 @@ class CocoDatasetGUI(ctk.CTk):
         for ann in new_annotations:
             ann["id"] += max_existing_ann_id + 1
 
+        # Merge annotations
         self.coco.dataset["annotations"].extend(new_annotations)
+        self.coco.dataset["images"].extend(new_images)
+        self.image_ids.extend([img["id"] for img in new_images])
 
         # Rebuild the index
         self.coco.createIndex()
