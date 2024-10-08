@@ -32,6 +32,9 @@ class CocoDatasetGUI(ctk.CTk):
         self.class_colors = {}
         self.classes = []
 
+        # Image ID to file path mapping
+        self.image_id_to_path = {}
+
         # Setup GUI elements
         self.setup_gui()
 
@@ -139,6 +142,11 @@ class CocoDatasetGUI(ctk.CTk):
             self.image_ids = self.coco.getImgIds()
             self.current_index = 0
 
+            # Map image IDs to file paths
+            for img_info in self.coco.loadImgs(self.image_ids):
+                image_path = os.path.join(self.image_folder, img_info["file_name"])
+                self.image_id_to_path[img_info["id"]] = image_path
+
             # Get list of classes
             cats = self.coco.loadCats(self.coco.getCatIds())
             self.classes = [cat["name"] for cat in cats]
@@ -190,7 +198,8 @@ class CocoDatasetGUI(ctk.CTk):
 
         # Get image info
         img_info = self.coco.loadImgs(self.image_ids[index])[0]
-        image_path = os.path.join(self.image_folder, img_info["file_name"])
+        image_id = img_info["id"]
+        image_path = self.image_id_to_path.get(image_id)
 
         # Open image
         try:
@@ -212,8 +221,6 @@ class CocoDatasetGUI(ctk.CTk):
             color = self.class_colors.get(cat_id, (255, 0, 0))
             outline_color = tuple(color)
             draw.rectangle([x, y, x + w, y + h], outline=outline_color, width=2)
-
-            # Get class id
 
             category_name = self.coco.loadCats(cat_id)[0]["name"]
 
@@ -280,170 +287,92 @@ class CocoDatasetGUI(ctk.CTk):
             new_image_folder = image_folder
             new_image_ids = new_coco.getImgIds()
 
-            # Map categories
-            category_mapping = self.map_categories(new_coco)
+            # Check if category IDs match
+            if self.categories_match(new_coco):
+                # Merge datasets
+                self.merge_datasets(new_coco, new_image_folder)
+                # Update dataset information
+                self.update_info_textbox()
+                self.update_classes_textbox()
+                self.update_image_index_label()
 
-            # Merge datasets
-            self.merge_datasets(new_coco, new_image_folder, category_mapping)
-
-            # Update dataset information
-            self.update_info_textbox()
-            self.update_classes_textbox()
-            self.update_image_index_label()
-
-            # Display the current image
-            self.display_sample(self.current_index)
+                # Display the current image
+                self.display_sample(self.current_index)
+            else:
+                messagebox.showwarning(
+                    "Warning", "Category IDs do not match. Cannot merge datasets."
+                )
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load additional dataset: {e}")
 
-    def map_categories(self, new_coco):
-        # Open a new window
-        self.map_window = ctk.CTkToplevel(self)
-        self.map_window.title("Map Categories")
-        self.map_window.geometry("500x600")
-
-        # Create a scrollable frame if necessary
-        canvas = tk.Canvas(self.map_window)
-        scrollbar = tk.Scrollbar(
-            self.map_window, orient="vertical", command=canvas.yview
+    def categories_match(self, new_coco):
+        # Get existing category IDs
+        existing_cat_ids = set(
+            [cat["id"] for cat in self.coco.loadCats(self.coco.getCatIds())]
         )
-        scrollable_frame = ctk.CTkFrame(canvas)
-
-        scrollable_frame.bind(
-            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        # Get new category IDs
+        new_cat_ids = set(
+            [cat["id"] for cat in new_coco.loadCats(new_coco.getCatIds())]
         )
 
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
+        # Check if the category IDs match
+        return existing_cat_ids == new_cat_ids
 
-        canvas.pack(side="left", fill="both", expand=True)
-        scrollbar.pack(side="right", fill="y")
-
-        # For each new category, display current ID and name, provide entry to input desired ID
-        self.category_entries = {}  # To store entries
-        row = 0
-        existing_cats = self.coco.loadCats(self.coco.getCatIds())
-        existing_cat_names = [cat["name"] for cat in existing_cats]
-        existing_cat_ids = [cat["id"] for cat in existing_cats]
-        existing_name_to_id = {
-            name: id for name, id in zip(existing_cat_names, existing_cat_ids)
-        }
-        used_ids = set(existing_cat_ids)
-
-        max_existing_id = max(existing_cat_ids) if existing_cat_ids else 0
-
-        for cat in new_coco.loadCats(new_coco.getCatIds()):
-            new_cat_id = cat["id"]
-            new_cat_name = cat["name"]
-
-            # Default ID mapping
-            if new_cat_name in existing_name_to_id:
-                default_id = existing_name_to_id[new_cat_name]
-            else:
-                max_existing_id += 1
-                default_id = max_existing_id
-
-            # Display new category ID and name
-            label = ctk.CTkLabel(
-                scrollable_frame,
-                text=f"Imported Category -> ID: {new_cat_id}, Name: {new_cat_name}",
-            )
-            label.grid(row=row, column=0, padx=5, pady=5, sticky="w")
-
-            # Entry field for desired ID
-            entry = ctk.CTkEntry(scrollable_frame)
-            entry.insert(0, str(default_id))
-            entry.grid(row=row, column=1, padx=5, pady=5)
-            self.category_entries[new_cat_id] = entry
-
-            row += 1
-
-        # Apply Changes button
-        apply_button = ctk.CTkButton(
-            scrollable_frame,
-            text="Apply Mappings",
-            command=self.apply_category_mappings,
-        )
-        apply_button.grid(row=row, column=0, columnspan=2, pady=10)
-
-        # Wait for the window to be closed before proceeding
-        self.map_window.grab_set()
-        self.wait_window(self.map_window)
-
-        # After window is closed, collect the mappings
-        mappings = {}
-        used_new_ids = set()
-        for new_cat_id, entry in self.category_entries.items():
-            new_id_str = entry.get()
-            try:
-                new_id = int(new_id_str)
-                if new_id in used_new_ids:
-                    messagebox.showerror(
-                        "Error",
-                        f"Duplicate ID {new_id} assigned to multiple categories.",
-                    )
-                    return self.map_categories(new_coco)  # Restart mapping
-                used_new_ids.add(new_id)
-                mappings[new_cat_id] = {
-                    "new_id": new_id,
-                    "name": new_coco.loadCats(new_cat_id)[0]["name"],
-                }
-            except ValueError:
-                messagebox.showerror(
-                    "Error", f"Invalid ID entered for category {new_cat_id}."
-                )
-                return self.map_categories(new_coco)  # Restart mapping
-
-        # Check for conflicts with existing IDs
-        conflicting_ids = used_new_ids.intersection(used_ids)
-        if conflicting_ids:
-            messagebox.showerror(
-                "Error",
-                f"Assigned IDs {conflicting_ids} conflict with existing category IDs.",
-            )
-            return self.map_categories(new_coco)  # Restart mapping
-
-        return mappings
-
-    def apply_category_mappings(self):
-        # Close the map window
-        self.map_window.destroy()
-
-    def merge_datasets(self, new_coco, new_image_folder, category_mapping):
-        # Update annotations in new_coco with mapped category IDs
-        for ann in new_coco.dataset["annotations"]:
-            new_cat_id = ann["category_id"]
-            mapped_cat = category_mapping[new_cat_id]
-            ann["category_id"] = mapped_cat["new_id"]
-
+    def merge_datasets(self, new_coco, new_image_folder):
         # Merge images
         new_images = new_coco.dataset["images"]
+
+        # Get the max image ID in existing dataset
+        existing_image_ids = [img["id"] for img in self.coco.dataset["images"]]
+        if existing_image_ids:
+            max_existing_image_id = max(existing_image_ids)
+        else:
+            max_existing_image_id = 0
+
+        # Shift new image IDs
+        image_id_mapping = {}
+        for img in new_images:
+            old_id = img["id"]
+            new_id = old_id + max_existing_image_id + 1
+            img["id"] = new_id
+            image_id_mapping[old_id] = new_id
+            # Update image path
+            image_path = os.path.join(new_image_folder, img["file_name"])
+            self.image_id_to_path[new_id] = image_path
+
+        # Update annotations in new_coco with new image IDs
+        for ann in new_coco.dataset["annotations"]:
+            ann["image_id"] = image_id_mapping[ann["image_id"]]
+
         self.coco.dataset["images"].extend(new_images)
-        self.image_ids.extend(new_coco.getImgIds())
+        self.image_ids.extend([img["id"] for img in new_images])
 
         # Merge annotations
         new_annotations = new_coco.dataset["annotations"]
+
+        # Get the max annotation ID in existing dataset
+        existing_ann_ids = [ann["id"] for ann in self.coco.dataset["annotations"]]
+        if existing_ann_ids:
+            max_existing_ann_id = max(existing_ann_ids)
+        else:
+            max_existing_ann_id = 0
+
+        # Shift new annotation IDs
+        for ann in new_annotations:
+            ann["id"] += max_existing_ann_id + 1
+
         self.coco.dataset["annotations"].extend(new_annotations)
 
-        # Merge categories
-        existing_cat_ids = set(self.coco.getCatIds())
-        for new_cat_id, mapping in category_mapping.items():
-            if mapping["new_id"] not in existing_cat_ids:
-                # It's a new category
-                new_category = new_coco.loadCats(new_cat_id)[0]
-                new_category["id"] = mapping["new_id"]
-                self.coco.dataset["categories"].append(new_category)
-                existing_cat_ids.add(mapping["new_id"])
-
-        # Rebuild index
+        # Rebuild the index
         self.coco.createIndex()
 
         # Update class colors
         self.assign_class_colors()
 
         # Update class list
-        cats = self.coco.loadCats(self.coco.getCatIds())
-        self.classes = [cat["name"] for cat in cats]
+        self.classes = [
+            cat["name"] for cat in self.coco.loadCats(self.coco.getCatIds())
+        ]
 
     def manage_classes(self):
         # Open a new window
