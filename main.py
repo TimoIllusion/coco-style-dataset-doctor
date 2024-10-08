@@ -5,7 +5,8 @@ from pycocotools.coco import COCO
 import os
 import random
 from tkinter import filedialog, messagebox, simpledialog
-import json  # Added to handle JSON operations
+import json
+import shutil  # Added to handle file copying
 
 # Initialize customtkinter
 ctk.set_appearance_mode("System")
@@ -16,7 +17,7 @@ class CocoDatasetGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("COCO Dataset GUI Tool")
+        self.title("COCO Style Dataset GUI")
         self.geometry("1000x700")
 
         # Initialize dataset variables
@@ -24,7 +25,7 @@ class CocoDatasetGUI(ctk.CTk):
         self.image_folder = None
         self.image_ids = []
         self.current_index = 0
-        self.annotation_file = None  # Added to store the original annotation file path
+        self.annotation_file = None  # Store the original annotation file path
 
         self.dataset_info = f"<INFO PLACEHOLDER>"
 
@@ -108,13 +109,21 @@ class CocoDatasetGUI(ctk.CTk):
         )
         self.manage_classes_button.pack(side="left", padx=10)
 
-        # Button to export the modified dataset
-        self.export_button = ctk.CTkButton(
+        # Rename the existing 'Export Dataset' button to 'Export Modified Annotations'
+        self.export_annotations_button = ctk.CTkButton(
+            master=self.control_frame,
+            text="Export Modified Annotations",
+            command=self.export_modified_annotations,
+        )
+        self.export_annotations_button.pack(side="left", padx=10)
+
+        # Add a new button to export the dataset including images
+        self.export_dataset_button = ctk.CTkButton(
             master=self.control_frame,
             text="Export Dataset",
             command=self.export_dataset,
         )
-        self.export_button.pack(side="left", padx=10)
+        self.export_dataset_button.pack(side="left", padx=10)
 
     def select_files(self):
         # File dialog to select annotation file
@@ -530,13 +539,13 @@ class CocoDatasetGUI(ctk.CTk):
         # Close the manage window
         self.manage_window.destroy()
 
-    def export_dataset(self):
+    def export_modified_annotations(self):
         # Default output filename
         default_filename = os.path.splitext(self.annotation_file)[0] + "_modified.json"
 
         # Ask user for output filename
         output_file = filedialog.asksaveasfilename(
-            title="Save COCO Annotation File",
+            title="Save Modified Annotations File",
             defaultextension=".json",
             initialfile=os.path.basename(default_filename),
             filetypes=[("JSON Files", "*.json")],
@@ -549,9 +558,47 @@ class CocoDatasetGUI(ctk.CTk):
         try:
             with open(output_file, "w") as f:
                 json.dump(self.coco.dataset, f)
-            messagebox.showinfo("Success", f"Dataset saved to {output_file}")
+            messagebox.showinfo("Success", f"Annotations saved to {output_file}")
         except Exception as e:
-            messagebox.showerror("Error", f"Failed to save dataset: {e}")
+            messagebox.showerror("Error", f"Failed to save annotations: {e}")
+
+    def export_dataset(self):
+        # Ask user for output directory
+        output_dir = filedialog.askdirectory(title="Select Output Directory")
+        if not output_dir:
+            messagebox.showinfo("Info", "No output directory selected.")
+            return
+
+        # Create annotations directory
+        annotations_dir = os.path.join(output_dir, "annotations")
+        os.makedirs(annotations_dir, exist_ok=True)
+
+        # Create images directory
+        images_dir = os.path.join(output_dir, "images")
+        os.makedirs(images_dir, exist_ok=True)
+
+        # Save the annotations file
+        annotations_file = os.path.join(annotations_dir, "instances.json")
+        try:
+            with open(annotations_file, "w") as f:
+                json.dump(self.coco.dataset, f)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save annotations: {e}")
+            return
+
+        # Copy images
+        try:
+            for img_id in self.image_ids:
+                image_path = self.image_id_to_path[img_id]
+                img_filename = os.path.basename(image_path)
+                dest_path = os.path.join(images_dir, img_filename)
+                if not os.path.exists(dest_path):
+                    shutil.copy(image_path, dest_path)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to copy images: {e}")
+            return
+
+        messagebox.showinfo("Success", f"Dataset exported to {output_dir}")
 
     # Additional methods can be added here
 
