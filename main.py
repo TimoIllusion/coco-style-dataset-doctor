@@ -5,6 +5,7 @@ from pycocotools.coco import COCO
 import os
 import random
 from tkinter import filedialog, messagebox, simpledialog
+import json  # Added to handle JSON operations
 
 # Initialize customtkinter
 ctk.set_appearance_mode("System")
@@ -23,6 +24,7 @@ class CocoDatasetGUI(ctk.CTk):
         self.image_folder = None
         self.image_ids = []
         self.current_index = 0
+        self.annotation_file = None  # Added to store the original annotation file path
 
         # Class colors
         self.class_colors = {}
@@ -101,6 +103,14 @@ class CocoDatasetGUI(ctk.CTk):
         )
         self.manage_classes_button.pack(side="left", padx=10)
 
+        # Button to export the modified dataset
+        self.export_button = ctk.CTkButton(
+            master=self.control_frame,
+            text="Export Dataset",
+            command=self.export_dataset,
+        )
+        self.export_button.pack(side="left", padx=10)
+
     def select_files(self):
         # File dialog to select annotation file
         annotation_file = filedialog.askopenfilename(
@@ -110,6 +120,8 @@ class CocoDatasetGUI(ctk.CTk):
             messagebox.showerror("Error", "No annotation file selected.")
             self.quit()
             return
+
+        self.annotation_file = annotation_file  # Store the annotation file path
 
         # Directory dialog to select image folder
         image_folder = filedialog.askdirectory(title="Select COCO Image Folder")
@@ -585,6 +597,29 @@ class CocoDatasetGUI(ctk.CTk):
 
         # Close the manage window
         self.manage_window.destroy()
+
+    def export_dataset(self):
+        # Default output filename
+        default_filename = os.path.splitext(self.annotation_file)[0] + "_modified.json"
+
+        # Ask user for output filename
+        output_file = filedialog.asksaveasfilename(
+            title="Save COCO Annotation File",
+            defaultextension=".json",
+            initialfile=os.path.basename(default_filename),
+            filetypes=[("JSON Files", "*.json")],
+        )
+        if not output_file:
+            messagebox.showinfo("Info", "No output file selected.")
+            return
+
+        # Save the dataset
+        try:
+            with open(output_file, "w") as f:
+                json.dump(self.coco.dataset, f)
+            messagebox.showinfo("Success", f"Dataset saved to {output_file}")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save dataset: {e}")
 
     # Additional methods can be added here
 
