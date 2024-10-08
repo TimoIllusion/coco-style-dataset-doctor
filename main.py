@@ -17,7 +17,7 @@ class CocoDatasetGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("COCO Style Dataset GUI")
+        self.title("COCO-style Dataset Doctor")
         self.geometry("1000x700")
 
         # Initialize dataset variables
@@ -294,42 +294,151 @@ class CocoDatasetGUI(ctk.CTk):
         try:
             new_coco = COCO(annotation_file)
 
-            # Check if category IDs match
-            if self.categories_match(new_coco):
-                # Merge datasets and pass the new image folder
-                self.merge_datasets(new_coco, image_folder)
+            # Show category comparison popup
+            self.compare_categories(new_coco, image_folder)
 
-                # Update dataset information
-                self.update_info_textbox()
-                self.update_classes_textbox()
-                self.update_image_index_label()
-
-                # Display the current image
-                self.display_sample(self.current_index)
-            else:
-                messagebox.showwarning(
-                    "Warning", "Category IDs do not match. Cannot merge datasets."
-                )
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load additional dataset: {e}")
 
-    def categories_match(self, new_coco):
-        # Get existing category IDs
-        existing_cat_ids = set(
-            [cat["id"] for cat in self.coco.loadCats(self.coco.getCatIds())]
-        )
-        # Get new category IDs
-        new_cat_ids = set(
-            [cat["id"] for cat in new_coco.loadCats(new_coco.getCatIds())]
-        )
+    def compare_categories(self, new_coco, new_image_folder):
+        # Create popup window
+        self.compare_window = ctk.CTkToplevel(self)
+        self.compare_window.title("Compare Categories")
+        self.compare_window.geometry("600x400")
 
-        # Check if the category IDs match
-        return existing_cat_ids == new_cat_ids
+        # Create a main frame
+        main_frame = ctk.CTkFrame(self.compare_window)
+        main_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Create a canvas and scrollbar for scrolling
+        canvas = tk.Canvas(main_frame)
+        scrollbar = tk.Scrollbar(main_frame, orient="vertical", command=canvas.yview)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        scrollbar.pack(side="right", fill="y")
+        canvas.pack(side="left", fill="both", expand=True)
+
+        # Create a frame inside the canvas
+        frame = ctk.CTkFrame(canvas)
+        canvas.create_window((0, 0), window=frame, anchor="nw")
+
+        # Update scrollregion when the frame size changes
+        def on_frame_configure(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        frame.bind("<Configure>", on_frame_configure)
+
+        # Get categories from both datasets
+        existing_cats = self.coco.loadCats(self.coco.getCatIds())
+        new_cats = new_coco.loadCats(new_coco.getCatIds())
+
+        existing_cat_ids = set(cat["id"] for cat in existing_cats)
+        new_cat_ids = set(cat["id"] for cat in new_cats)
+
+        categories_match = existing_cat_ids == new_cat_ids
+
+        # Display message based on category match
+        if categories_match:
+            message_label = ctk.CTkLabel(
+                frame,
+                text="Categories match!",
+                fg_color="green",
+                text_color="white",
+                corner_radius=5,
+                padx=10,
+                pady=5,
+            )
+        else:
+            message_label = ctk.CTkLabel(
+                frame,
+                text="Warning: Categories do not match! Annotations may be lost.",
+                fg_color="red",
+                text_color="white",
+                corner_radius=5,
+                padx=10,
+                pady=5,
+            )
+        message_label.grid(row=0, column=0, columnspan=2, pady=5)
+
+        # Create labels for the existing and new datasets
+        existing_label = ctk.CTkLabel(frame, text="Target Dataset Categories")
+        existing_label.grid(row=1, column=0, padx=5, pady=5)
+
+        new_label = ctk.CTkLabel(frame, text="Source Dataset Categories")
+        new_label.grid(row=1, column=1, padx=5, pady=5)
+
+        # Get lists of category IDs and names
+        existing_cat_list = sorted([(cat["id"], cat["name"]) for cat in existing_cats])
+        new_cat_list = sorted([(cat["id"], cat["name"]) for cat in new_cats])
+
+        # Determine the maximum number of categories to display
+        max_rows = max(len(existing_cat_list), len(new_cat_list))
+
+        # Display categories side by side
+        for i in range(max_rows):
+            if i < len(existing_cat_list):
+                cat_id, cat_name = existing_cat_list[i]
+                label = ctk.CTkLabel(frame, text=f"{cat_id}: {cat_name}")
+                label.grid(row=i + 2, column=0, padx=5, pady=2, sticky="w")
+            if i < len(new_cat_list):
+                cat_id, cat_name = new_cat_list[i]
+                label = ctk.CTkLabel(frame, text=f"{cat_id}: {cat_name}")
+                label.grid(row=i + 2, column=1, padx=5, pady=2, sticky="w")
+
+        # Add a button frame at the bottom
+        button_frame = ctk.CTkFrame(frame)
+        button_frame.grid(row=max_rows + 2, column=0, columnspan=2, pady=10)
+
+        # Merge button
+        merge_button = ctk.CTkButton(
+            button_frame,
+            text="Merge",
+            command=lambda: self.confirm_merge(new_coco, new_image_folder),
+        )
+        merge_button.pack(side="left", padx=10)
+
+        # Cancel button
+        cancel_button = ctk.CTkButton(
+            button_frame, text="Cancel", command=self.compare_window.destroy
+        )
+        cancel_button.pack(side="left", padx=10)
+
+        # Wait for the window to be closed before proceeding
+        self.compare_window.grab_set()
+        self.compare_window.wait_window()
+
+    def confirm_merge(self, new_coco, new_image_folder):
+        # Proceed to merge datasets
+        self.merge_datasets(new_coco, new_image_folder)
+
+        # Close the compare window
+        self.compare_window.destroy()
+
+        # Update dataset information
+        self.update_info_textbox()
+        self.update_classes_textbox()
+        self.update_image_index_label()
+
+        # Display the current image
+        self.display_sample(self.current_index)
 
     def merge_datasets(self, new_coco, new_image_folder):
-        # Merge images
-        new_image_ids = new_coco.getImgIds()
-        new_images = new_coco.loadImgs(new_image_ids)
+        # Get existing category IDs in the target dataset
+        existing_cat_ids = set(self.coco.getCatIds())
+
+        # Filter new annotations to include only those with category_ids present in the target dataset
+        new_ann_ids = new_coco.getAnnIds()
+        new_annotations = new_coco.loadAnns(new_ann_ids)
+        filtered_annotations = [
+            ann for ann in new_annotations if ann["category_id"] in existing_cat_ids
+        ]
+
+        # Get image IDs for the filtered annotations
+        image_ids_with_valid_annotations = set(
+            ann["image_id"] for ann in filtered_annotations
+        )
+
+        # Load images corresponding to the filtered annotations
+        new_images = new_coco.loadImgs(list(image_ids_with_valid_annotations))
 
         # Get the max image ID in existing dataset
         existing_image_ids = self.coco.getImgIds()
@@ -338,7 +447,7 @@ class CocoDatasetGUI(ctk.CTk):
         else:
             max_existing_image_id = 0
 
-        # Shift new image IDs
+        # Shift new image IDs and update image paths
         image_id_mapping = {}
         for img in new_images:
             old_id = img["id"]
@@ -349,25 +458,19 @@ class CocoDatasetGUI(ctk.CTk):
             image_path = os.path.join(new_image_folder, img["file_name"])
             self.image_id_to_path[new_id] = image_path
 
-        # Update annotations in new_coco with new image IDs
-        new_ann_ids = new_coco.getAnnIds()
-        new_annotations = new_coco.loadAnns(new_ann_ids)
-        for ann in new_annotations:
-            ann["image_id"] = image_id_mapping[ann["image_id"]]
-
-        # Get the max annotation ID in existing dataset
+        # Update annotations with new image IDs and shift annotation IDs
         existing_ann_ids = self.coco.getAnnIds()
         if existing_ann_ids:
             max_existing_ann_id = max(existing_ann_ids)
         else:
             max_existing_ann_id = 0
 
-        # Shift new annotation IDs
-        for ann in new_annotations:
+        for ann in filtered_annotations:
+            ann["image_id"] = image_id_mapping[ann["image_id"]]
             ann["id"] += max_existing_ann_id + 1
 
         # Merge annotations and images
-        self.coco.dataset["annotations"].extend(new_annotations)
+        self.coco.dataset["annotations"].extend(filtered_annotations)
         self.coco.dataset["images"].extend(new_images)
         self.image_ids.extend([img["id"] for img in new_images])
 
