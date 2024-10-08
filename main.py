@@ -1,12 +1,14 @@
-import tkinter as tk
-import customtkinter as ctk
-from PIL import Image, ImageTk, ImageDraw, ImageFont
-from pycocotools.coco import COCO
 import os
 import random
-from tkinter import filedialog, messagebox, simpledialog
 import json
-import shutil  # Added to handle file copying
+import shutil
+
+from PIL import Image, ImageTk, ImageDraw, ImageFont
+from pycocotools.coco import COCO
+
+import customtkinter as ctk
+import tkinter as tk
+from tkinter import filedialog, messagebox, simpledialog
 
 # Initialize customtkinter
 ctk.set_appearance_mode("System")
