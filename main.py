@@ -17,8 +17,8 @@ class CocoDatasetGUI(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("COCO-style Dataset Doctor")
-        self.geometry("1000x700")
+        self.title("COCO-Style Dataset Doctor")
+        self.geometry("1600x1000")  # Increased width to accommodate textboxes
 
         # Initialize dataset variables
         self.coco = None
@@ -71,9 +71,27 @@ class CocoDatasetGUI(ctk.CTk):
         )
         self.next_button.grid(row=0, column=1, padx=5)
 
-        # Image display label
-        self.image_label = ctk.CTkLabel(master=self.frame, text="")
-        self.image_label.pack(pady=10)
+        # Main content frame with three columns (image info, image, and annotation info)
+        self.content_frame = ctk.CTkFrame(master=self.frame)
+        self.content_frame.pack(pady=10, padx=10, fill="both", expand=True)
+
+        # Image display label in the center
+        self.image_label = ctk.CTkLabel(master=self.content_frame, text="")
+        self.image_label.pack(side="left", padx=10, pady=10)
+
+        # Left Textbox for Image Info (non-scrollable)
+        self.image_info_textbox = ctk.CTkTextbox(
+            master=self.content_frame, width=400, height=400
+        )
+        self.image_info_textbox.pack(side="left", padx=10, pady=5)
+        self.image_info_textbox.configure(state="disabled")
+
+        # Right Textbox for Annotation Info (scrollable)
+        self.annotation_textbox = ctk.CTkTextbox(
+            master=self.content_frame, width=400, height=400
+        )
+        self.annotation_textbox.pack(side="left", padx=10, pady=5)
+        self.annotation_textbox.configure(state="disabled")
 
         # Bottom frame for class list and info
         self.bottom_frame = ctk.CTkFrame(master=self.frame)
@@ -278,6 +296,12 @@ class CocoDatasetGUI(ctk.CTk):
         image_id = img_info["id"]
         image_path = self.image_id_to_path.get(image_id)
 
+        # Display image info in the left textbox (non-scrollable)
+        self.image_info_textbox.configure(state="normal")
+        self.image_info_textbox.delete("1.0", tk.END)
+        self.image_info_textbox.insert(tk.END, json.dumps(img_info, indent=4))
+        self.image_info_textbox.configure(state="disabled")
+
         # Open image
         try:
             image = Image.open(image_path).convert("RGB")
@@ -322,6 +346,12 @@ class CocoDatasetGUI(ctk.CTk):
         # Update image label
         self.image_label.configure(image=self.photo)
         self.image_label.image = self.photo
+
+        # Display annotations in the right textbox (scrollable)
+        self.annotation_textbox.configure(state="normal")
+        self.annotation_textbox.delete("1.0", tk.END)
+        self.annotation_textbox.insert(tk.END, json.dumps(anns, indent=4))
+        self.annotation_textbox.configure(state="disabled")
 
         # Update image index label
         self.update_image_index_label()
