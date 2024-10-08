@@ -287,8 +287,8 @@ class CocoDatasetGUI(ctk.CTk):
 
             # Check if category IDs match
             if self.categories_match(new_coco):
-                # Merge datasets
-                self.merge_datasets(new_coco)
+                # Merge datasets and pass the new image folder
+                self.merge_datasets(new_coco, image_folder)
 
                 # Update dataset information
                 self.update_info_textbox()
@@ -317,7 +317,7 @@ class CocoDatasetGUI(ctk.CTk):
         # Check if the category IDs match
         return existing_cat_ids == new_cat_ids
 
-    def merge_datasets(self, new_coco):
+    def merge_datasets(self, new_coco, new_image_folder):
         # Merge images
         new_image_ids = new_coco.getImgIds()
         new_images = new_coco.loadImgs(new_image_ids)
@@ -336,8 +336,8 @@ class CocoDatasetGUI(ctk.CTk):
             new_id = old_id + max_existing_image_id + 1
             img["id"] = new_id
             image_id_mapping[old_id] = new_id
-            # Update image path
-            image_path = img["file_name"]
+            # Update image path with the new image folder
+            image_path = os.path.join(new_image_folder, img["file_name"])
             self.image_id_to_path[new_id] = image_path
 
         # Update annotations in new_coco with new image IDs
@@ -357,7 +357,7 @@ class CocoDatasetGUI(ctk.CTk):
         for ann in new_annotations:
             ann["id"] += max_existing_ann_id + 1
 
-        # Merge annotations
+        # Merge annotations and images
         self.coco.dataset["annotations"].extend(new_annotations)
         self.coco.dataset["images"].extend(new_images)
         self.image_ids.extend([img["id"] for img in new_images])
