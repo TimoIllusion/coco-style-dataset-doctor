@@ -5,7 +5,6 @@ import shutil
 
 from PIL import Image, ImageTk, ImageDraw, ImageFont
 from pycocotools.coco import COCO
-
 import customtkinter as ctk
 import tkinter as tk
 from tkinter import filedialog, messagebox, simpledialog
