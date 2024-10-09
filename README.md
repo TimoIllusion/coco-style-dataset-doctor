@@ -17,6 +17,14 @@ python main.py
 
 Select a coco-style dataset (e.g. `coco_style_dataset.json` and corresponding image directory) and start manipulating the dataset.
 
+## Planned Features
+
+- [ ] Adjustable label textsize
+- [ ] Shifting class IDs
+- [ ] Renaming class names
+- [ ] Order categories by ids in coco json
+- [ ] Check COCO dataset convention conformity (iscrowd and other keys available)
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
