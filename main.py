@@ -139,7 +139,7 @@ class CocoDatasetGUI(ctk.CTk):
         # iscrowd button
         self.add_missing_is_crowd_field_button = ctk.CTkButton(
             master=self.control_frame,
-            text="Add missing iscrowd field",
+            text="Add Missing 'iscrowd' Field",
             command=self.add_missing_is_crowd_field,
         )
         self.add_missing_is_crowd_field_button.pack(side="left", padx=10)
