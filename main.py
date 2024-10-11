@@ -123,7 +123,7 @@ class CocoDatasetGUI(ctk.CTk):
         # Button to manage classes (change IDs or delete)
         self.manage_classes_button = ctk.CTkButton(
             master=self.control_frame,
-            text="Manage Classes",
+            text="Manage Class IDs",
             command=self.manage_classes,
         )
         self.manage_classes_button.pack(side="left", padx=10)
@@ -293,10 +293,11 @@ class CocoDatasetGUI(ctk.CTk):
     def update_classes_textbox(self):
         self.classes_textbox.configure(state="normal")
         self.classes_textbox.delete("1.0", tk.END)
-        self.classes_textbox.insert("1.0", "Classes:\n")
+        self.classes_textbox.insert("1.0", "Class Name (ID):\n")
         for cat_id in sorted(self.coco.getCatIds()):
             cat = self.coco.loadCats(cat_id)[0]
-            self.classes_textbox.insert(tk.END, f"{cat_id}: {cat['name']}\n")
+            cat_name = cat["name"]
+            self.classes_textbox.insert(tk.END, f"{cat_name} ({cat_id})\n")
         self.classes_textbox.configure(state="disabled")
 
     def update_image_index_label(self):
@@ -492,11 +493,15 @@ class CocoDatasetGUI(ctk.CTk):
         for i in range(max_rows):
             if i < len(existing_cat_list):
                 cat_id, cat_name = existing_cat_list[i]
-                label = ctk.CTkLabel(frame, text=f"{cat_id}: {cat_name}")
+                label = ctk.CTkLabel(
+                    frame, text=f"Class Name (ID): {cat_name} ({cat_id})"
+                )
                 label.grid(row=i + 2, column=0, padx=5, pady=2, sticky="w")
             if i < len(new_cat_list):
                 cat_id, cat_name = new_cat_list[i]
-                label = ctk.CTkLabel(frame, text=f"{cat_id}: {cat_name}")
+                label = ctk.CTkLabel(
+                    frame, text=f"Class Name (ID): {cat_name} ({cat_id})"
+                )
                 label.grid(row=i + 2, column=1, padx=5, pady=2, sticky="w")
 
         # Add a button frame at the bottom
@@ -673,8 +678,8 @@ class CocoDatasetGUI(ctk.CTk):
     def manage_classes(self):
         # Open a new window
         self.manage_window = ctk.CTkToplevel(self)
-        self.manage_window.title("Manage Classes")
-        self.manage_window.geometry("400x600")
+        self.manage_window.title("Manage Class IDs")
+        self.manage_window.geometry("600x1000")
 
         # Create a scrollable frame if necessary
         canvas = tk.Canvas(self.manage_window)
@@ -703,7 +708,8 @@ class CocoDatasetGUI(ctk.CTk):
 
             # Display current ID and name
             label = ctk.CTkLabel(
-                scrollable_frame, text=f"ID: {cat_id}, Name: {cat_name}"
+                scrollable_frame,
+                text=f"Class Name (ID): {cat_name} ({cat_id}) - Change ID to:",
             )
             label.grid(row=row, column=0, padx=5, pady=5, sticky="w")
 
