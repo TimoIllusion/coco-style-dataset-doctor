@@ -128,6 +128,22 @@ class CocoDatasetGUI(ctk.CTk):
         )
         self.manage_classes_button.pack(side="left", padx=10)
 
+        # Subsample button
+        self.increase_decrease_button = ctk.CTkButton(
+            master=self.control_frame,
+            text="Sub/Over Sample Dataset",
+            command=self.sub_or_over_sample_dataset,
+        )
+        self.increase_decrease_button.pack(side="left", padx=10)
+
+        # iscrowd button
+        self.add_missing_is_crowd_field_button = ctk.CTkButton(
+            master=self.control_frame,
+            text="Add missing iscrowd field",
+            command=self.add_missing_is_crowd_field,
+        )
+        self.add_missing_is_crowd_field_button.pack(side="left", padx=10)
+
         # Rename the existing 'Export Dataset' button to 'Export Modified Annotations'
         self.export_annotations_button = ctk.CTkButton(
             master=self.control_frame,
@@ -583,6 +599,76 @@ class CocoDatasetGUI(ctk.CTk):
         self.classes = [
             cat["name"] for cat in self.coco.loadCats(self.coco.getCatIds())
         ]
+
+    def sub_or_over_sample_dataset(self):
+        # Open a new window for subsampling/oversampling options
+        self.sample_window = ctk.CTkToplevel(self)
+        self.sample_window.title("Subsample/Oversample Dataset")
+        self.sample_window.geometry("500x300")
+
+        # Create a frame to organize the widgets
+        frame = ctk.CTkFrame(self.sample_window)
+        frame.pack(padx=20, pady=20, fill="both", expand=True)
+
+        # Label for subsampling ratio
+        subsample_ratio_label = ctk.CTkLabel(
+            frame, text="Enter Subsampling Ratio (0.0 - 1.0):"
+        )
+        subsample_ratio_label.grid(row=0, column=0, padx=10, pady=10, sticky="w")
+
+        # Entry to input the subsampling ratio
+        self.subsample_ratio_entry = ctk.CTkEntry(frame)
+        self.subsample_ratio_entry.grid(row=0, column=1, padx=10, pady=10)
+
+        # Subsample button
+        subsample_button = ctk.CTkButton(
+            frame, text="Subsample", command=self.apply_subsample
+        )
+        subsample_button.grid(row=1, column=0, columnspan=2, padx=10, pady=10)
+
+        # Label for oversampling ratio
+        oversample_ratio_label = ctk.CTkLabel(
+            frame, text="Enter Oversampling Ratio (1, 2, 3, 4 ..):"
+        )
+        oversample_ratio_label.grid(row=2, column=0, padx=10, pady=10, sticky="w")
+
+        # Entry to input the oversampling ratio
+        self.oversample_ratio_entry = ctk.CTkEntry(frame)
+        self.oversample_ratio_entry.grid(row=2, column=1, padx=10, pady=10)
+
+        # Oversample button
+        oversample_button = ctk.CTkButton(
+            frame, text="Oversample", command=self.apply_oversample
+        )
+        oversample_button.grid(row=3, column=0, columnspan=2, padx=10, pady=10)
+
+    def apply_subsample(self):
+        messagebox.showinfo(
+            "Info", "Subsampling is not yet implemented. Nothing happened"
+        )
+
+    def apply_oversample(self):
+        messagebox.showinfo(
+            "Info", "Oversampling is not yet implemented. Nothing happened"
+        )
+
+    def add_missing_is_crowd_field(self):
+        # Iterate through all annotations in the dataset
+        counter = 0
+        for annotation in self.coco.dataset.get("annotations", []):
+            # If the 'is_crowd' field is missing, add it with a default value of 0
+            if "iscrowd" not in annotation:
+                annotation["iscrowd"] = 0
+                counter += 1
+
+        # Notify the user that the missing 'is_crowd' fields have been added
+        messagebox.showinfo(
+            "Success",
+            f"{counter} Missing 'is_crowd' fields have been added with default value 0.",
+        )
+
+        # Optionally, you could rebuild the COCO index after making changes
+        self.coco.createIndex()
 
     def manage_classes(self):
         # Open a new window
