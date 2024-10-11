@@ -331,7 +331,7 @@ class CocoDatasetGUI(ctk.CTk):
         ann_ids = self.coco.getAnnIds(imgIds=img_info["id"])
         anns = self.coco.loadAnns(ann_ids)
         draw = ImageDraw.Draw(image)
-        font = ImageFont.load_default()
+        font = ImageFont.load_default(size=25.0)
 
         for ann in anns:
             bbox = ann["bbox"]
