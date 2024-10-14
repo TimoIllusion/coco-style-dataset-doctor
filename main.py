@@ -807,8 +807,161 @@ class CocoDatasetGUI(ctk.CTk):
 
     def manage_classes(self):
         """Open a window to manage class IDs."""
-        # Implementation of manage_classes (similar to original code)
-        messagebox.showinfo("Info", "Class management is not yet implemented.")
+
+        # Open a new window
+        self.manage_window = ctk.CTkToplevel(self)
+        self.manage_window.title("Manage Class IDs")
+        self.manage_window.geometry("600x1000")
+
+        # Create a scrollable frame if necessary
+        canvas = tk.Canvas(self.manage_window)
+        scrollbar = tk.Scrollbar(
+            self.manage_window, orient="vertical", command=canvas.yview
+        )
+        scrollable_frame = ctk.CTkFrame(canvas)
+
+        scrollable_frame.bind(
+            "<Configure>", lambda e: canvas.configure(scrollregion=canvas.bbox("all"))
+        )
+
+        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
+        canvas.configure(yscrollcommand=scrollbar.set)
+
+        canvas.pack(side="left", fill="both", expand=True)
+        scrollbar.pack(side="right", fill="y")
+
+        # For each category, display current ID and name, entry for new ID, and delete checkbox
+        self.class_entries = {}  # To store entries for new IDs
+        self.class_delete_vars = {}  # To store variables for delete checkboxes
+        row = 0
+        for cat in self.coco.loadCats(self.coco.getCatIds()):
+            cat_id = cat["id"]
+            cat_name = cat["name"]
+
+            # Display current ID and name
+            label = ctk.CTkLabel(
+                scrollable_frame,
+                text=f"Class Name (ID): {cat_name} ({cat_id}) - Change ID to:",
+            )
+            label.grid(row=row, column=0, padx=5, pady=5, sticky="w")
+
+            # Entry for new ID
+            entry = ctk.CTkEntry(scrollable_frame)
+            entry.grid(row=row, column=1, padx=5, pady=5)
+            self.class_entries[cat_id] = entry
+
+            # Checkbox for delete
+            var = tk.BooleanVar()
+            checkbox = ctk.CTkCheckBox(scrollable_frame, text="Delete", variable=var)
+            checkbox.grid(row=row, column=2, padx=5, pady=5)
+            self.class_delete_vars[cat_id] = var
+
+            row += 1
+
+        # Apply Changes button
+        apply_button = ctk.CTkButton(
+            scrollable_frame, text="Apply Changes", command=self.apply_class_changes
+        )
+        apply_button.grid(row=row, column=0, columnspan=3, pady=10)
+
+    def apply_class_changes(self):
+        # Collect new IDs and deletions
+        new_ids = {}
+        delete_category_ids = []
+        existing_ids = set(self.coco.getCatIds())
+
+        # First, collect new IDs and check for conflicts
+        used_new_ids = set()
+        for cat_id, entry in self.class_entries.items():
+            new_id_str = entry.get()
+            if new_id_str:
+                try:
+                    new_id = int(new_id_str)
+                    if new_id in used_new_ids:
+                        messagebox.showerror(
+                            "Error",
+                            f"Duplicate new ID {new_id} assigned to multiple categories.",
+                        )
+                        return
+                    if new_id in existing_ids and new_id != cat_id:
+                        messagebox.showerror(
+                            "Error",
+                            f"New ID {new_id} conflicts with existing category ID.",
+                        )
+                        return
+                    new_ids[cat_id] = new_id
+                    used_new_ids.add(new_id)
+                except ValueError:
+                    messagebox.showerror(
+                        "Error", f"Invalid ID entered for category {cat_id}."
+                    )
+                    return
+
+        # Collect categories to delete
+        for cat_id, var in self.class_delete_vars.items():
+            if var.get():
+                delete_category_ids.append(cat_id)
+
+        # Confirm deletion
+        if delete_category_ids:
+            result = messagebox.askyesno(
+                "Confirm Deletion",
+                f"Are you sure you want to delete categories {delete_category_ids}? This will remove all associated annotations.",
+            )
+            if not result:
+                return
+
+        # Apply changes
+        # Update category IDs
+        for old_id, new_id in new_ids.items():
+            if old_id != new_id:
+                # Update category ID in categories
+                for cat in self.coco.dataset["categories"]:
+                    if cat["id"] == old_id:
+                        cat["id"] = new_id
+                        break
+                # Update category ID in annotations
+                for ann in self.coco.dataset["annotations"]:
+                    if ann["category_id"] == old_id:
+                        ann["category_id"] = new_id
+                # Update class colors
+                if old_id in self.class_colors:
+                    self.class_colors[new_id] = self.class_colors.pop(old_id)
+                existing_ids.discard(old_id)
+                existing_ids.add(new_id)
+
+        # Delete categories and associated annotations
+        if delete_category_ids:
+            # Remove categories
+            self.coco.dataset["categories"] = [
+                cat
+                for cat in self.coco.dataset["categories"]
+                if cat["id"] not in delete_category_ids
+            ]
+            # Remove annotations
+            self.coco.dataset["annotations"] = [
+                ann
+                for ann in self.coco.dataset["annotations"]
+                if ann["category_id"] not in delete_category_ids
+            ]
+            # Remove class colors
+            for del_id in delete_category_ids:
+                if del_id in self.class_colors:
+                    del self.class_colors[del_id]
+            existing_ids = existing_ids.difference(set(delete_category_ids))
+
+        # Rebuild the index
+        self.coco.createIndex()
+
+        self.assign_class_colors()
+
+        self.update_classes_textbox()
+
+        self.display_sample(self.current_index)
+
+        self.manage_window.destroy()
+
+        self.update_info_textbox()
 
     def export_modified_annotations(self):
         """Export the modified annotations to a JSON file."""

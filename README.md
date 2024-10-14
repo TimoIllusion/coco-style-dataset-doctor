@@ -24,6 +24,7 @@ Select a coco-style dataset (e.g. `coco_style_dataset.json` and corresponding im
 - [ ] Renaming class names
 - [ ] Order categories by ids in coco json
 - [ ] Check COCO dataset convention conformity (iscrowd and other keys available)
+- [ ] Fix issue when importing images with same names in different directories
 
 ## License
 
