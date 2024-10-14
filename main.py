@@ -37,11 +37,12 @@ class CocoDatasetGUI(ctk.CTk):
         # Image ID to file path mapping
         self.image_id_to_path = {}
 
+        # Load recent paths
+        self.recent_paths = {}
+        self.load_recent_paths()
+
         # Setup GUI elements
         self.setup_gui()
-
-        # Prompt user to select files
-        self.select_files()
 
     def setup_gui(self):
         # Main frame
@@ -112,13 +113,21 @@ class CocoDatasetGUI(ctk.CTk):
         self.control_frame = ctk.CTkFrame(master=self.frame)
         self.control_frame.pack(pady=10, padx=10, fill="x")
 
-        # Button to add another dataset
-        self.add_dataset_button = ctk.CTkButton(
+        # Load Dataset button
+        self.load_dataset_button = ctk.CTkButton(
             master=self.control_frame,
-            text="Add Another Dataset",
+            text="Load Dataset",
+            command=self.load_dataset,
+        )
+        self.load_dataset_button.pack(side="left", padx=10)
+
+        # Merge Dataset button (previously 'Add Another Dataset')
+        self.merge_dataset_button = ctk.CTkButton(
+            master=self.control_frame,
+            text="Merge Dataset",
             command=self.add_dataset,
         )
-        self.add_dataset_button.pack(side="left", padx=10)
+        self.merge_dataset_button.pack(side="left", padx=10)
 
         # Button to manage classes (change IDs or delete)
         self.manage_classes_button = ctk.CTkButton(
@@ -169,33 +178,64 @@ class CocoDatasetGUI(ctk.CTk):
         )
         self.delete_image_button.pack(side="left", padx=10)
 
-    def select_files(self):
+    def load_recent_paths(self):
+        try:
+            with open("recent_paths.json", "r") as f:
+                self.recent_paths = json.load(f)
+        except Exception as e:
+            print(f"No recent paths found: {e}")
+            self.recent_paths = {}
+
+    def save_recent_paths(self):
+        try:
+            with open("recent_paths.json", "w") as f:
+                json.dump(self.recent_paths, f)
+        except Exception as e:
+            print(f"Failed to save recent paths: {e}")
+
+    def load_dataset(self):
+        # Get recent annotation file and image folder
+        recent_annotation_file = self.recent_paths.get("annotation_file", "")
+        recent_image_folder = self.recent_paths.get("image_folder", "")
+
         # File dialog to select annotation file
         annotation_file = filedialog.askopenfilename(
-            title="Select COCO Annotation File", filetypes=[("JSON Files", "*.json")]
+            title="Select COCO Annotation File",
+            filetypes=[("JSON Files", "*.json")],
+            initialdir=(
+                os.path.dirname(recent_annotation_file)
+                if recent_annotation_file
+                else ""
+            ),
+            initialfile=(
+                os.path.basename(recent_annotation_file)
+                if recent_annotation_file
+                else ""
+            ),
         )
         if not annotation_file:
             messagebox.showerror("Error", "No annotation file selected.")
-            self.quit()
             return
 
-        self.annotation_file = annotation_file  # Store the annotation file path
-
         # Directory dialog to select image folder
-        image_folder = filedialog.askdirectory(title="Select COCO Image Folder")
+        image_folder = filedialog.askdirectory(
+            title="Select COCO Image Folder",
+            initialdir=recent_image_folder if recent_image_folder else "",
+        )
         if not image_folder:
             messagebox.showerror("Error", "No image folder selected.")
-            self.quit()
             return
 
         # Load COCO dataset
         try:
             self.coco = COCO(annotation_file)
+            self.annotation_file = annotation_file
             self.image_folder = image_folder
             self.image_ids = self.coco.getImgIds()
             self.current_index = 0
 
             # Map image IDs to file paths
+            self.image_id_to_path = {}
             for img_info in self.coco.loadImgs(self.image_ids):
                 image_path = os.path.join(self.image_folder, img_info["file_name"])
                 self.image_id_to_path[img_info["id"]] = image_path
@@ -212,9 +252,13 @@ class CocoDatasetGUI(ctk.CTk):
 
             # Display the first image and annotations
             self.display_sample(self.current_index)
+
+            # Save recent paths
+            self.recent_paths["annotation_file"] = annotation_file
+            self.recent_paths["image_folder"] = image_folder
+            self.save_recent_paths()
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load dataset: {e}")
-            self.quit()
 
     def assign_class_colors(self):
         random.seed(42)  # For reproducibility
@@ -301,9 +345,12 @@ class CocoDatasetGUI(ctk.CTk):
         self.classes_textbox.configure(state="disabled")
 
     def update_image_index_label(self):
-        self.image_index_label.configure(
-            text=f"Image {self.current_index + 1}/{len(self.image_ids)}"
-        )
+        if self.image_ids:
+            self.image_index_label.configure(
+                text=f"Image {self.current_index + 1}/{len(self.image_ids)}"
+            )
+        else:
+            self.image_index_label.configure(text="Image 0/0")
 
     def display_sample(self, index):
         if not self.image_ids:
@@ -331,7 +378,7 @@ class CocoDatasetGUI(ctk.CTk):
         ann_ids = self.coco.getAnnIds(imgIds=img_info["id"])
         anns = self.coco.loadAnns(ann_ids)
         draw = ImageDraw.Draw(image)
-        font = ImageFont.load_default(size=25.0)
+        font = ImageFont.load_default()
 
         for ann in anns:
             bbox = ann["bbox"]
@@ -389,10 +436,24 @@ class CocoDatasetGUI(ctk.CTk):
         self.display_sample(self.current_index)
 
     def add_dataset(self):
+        # Get recent annotation file and image folder
+        recent_annotation_file = self.recent_paths.get("annotation_file", "")
+        recent_image_folder = self.recent_paths.get("image_folder", "")
+
         # File dialog to select additional annotation file
         annotation_file = filedialog.askopenfilename(
             title="Select Additional COCO Annotation File",
             filetypes=[("JSON Files", "*.json")],
+            initialdir=(
+                os.path.dirname(recent_annotation_file)
+                if recent_annotation_file
+                else ""
+            ),
+            initialfile=(
+                os.path.basename(recent_annotation_file)
+                if recent_annotation_file
+                else ""
+            ),
         )
         if not annotation_file:
             messagebox.showinfo("Info", "No annotation file selected.")
@@ -400,7 +461,8 @@ class CocoDatasetGUI(ctk.CTk):
 
         # Directory dialog to select image folder
         image_folder = filedialog.askdirectory(
-            title="Select Additional COCO Image Folder"
+            title="Select Additional COCO Image Folder",
+            initialdir=recent_image_folder if recent_image_folder else "",
         )
         if not image_folder:
             messagebox.showinfo("Info", "No image folder selected.")
@@ -412,6 +474,11 @@ class CocoDatasetGUI(ctk.CTk):
 
             # Show category comparison popup
             self.compare_categories(new_coco, image_folder)
+
+            # Save recent paths
+            self.recent_paths["annotation_file"] = annotation_file
+            self.recent_paths["image_folder"] = image_folder
+            self.save_recent_paths()
 
         except Exception as e:
             messagebox.showerror("Error", f"Failed to load additional dataset: {e}")
@@ -833,7 +900,11 @@ class CocoDatasetGUI(ctk.CTk):
 
     def export_modified_annotations(self):
         # Default output filename
-        default_filename = os.path.splitext(self.annotation_file)[0] + "_modified.json"
+        default_filename = (
+            os.path.splitext(self.annotation_file)[0] + "_modified.json"
+            if self.annotation_file
+            else "annotations_modified.json"
+        )
 
         # Ask user for output filename
         output_file = filedialog.asksaveasfilename(
