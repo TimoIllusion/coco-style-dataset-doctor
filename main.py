@@ -44,6 +44,19 @@ class CocoDatasetGUI(ctk.CTk):
         # Setup GUI elements
         self.setup_gui()
 
+        # Attempt to load dataset if recent paths are available
+        if (
+            "annotation_file" in self.recent_paths
+            and "image_folder" in self.recent_paths
+        ):
+            try:
+                self.load_dataset_from_paths(
+                    self.recent_paths["annotation_file"],
+                    self.recent_paths["image_folder"],
+                )
+            except Exception as e:
+                print(f"Failed to load recent dataset: {e}")
+
     def setup_gui(self):
         # Main frame
         self.frame = ctk.CTkFrame(master=self)
@@ -226,6 +239,9 @@ class CocoDatasetGUI(ctk.CTk):
             messagebox.showerror("Error", "No image folder selected.")
             return
 
+        self.load_dataset_from_paths(annotation_file, image_folder)
+
+    def load_dataset_from_paths(self, annotation_file, image_folder):
         # Load COCO dataset
         try:
             self.coco = COCO(annotation_file)
