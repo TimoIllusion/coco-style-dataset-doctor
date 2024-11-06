@@ -800,9 +800,16 @@ class CocoDatasetGUI(ctk.CTk):
 
     def add_missing_segmentation_field(self):
         """Add missing 'segmentation' field to annotations."""
+        counter = 0
         for annotation in self.coco.dataset.get("annotations", []):
             if "segmentation" not in annotation:
                 annotation["segmentation"] = []
+                counter += 1
+
+        messagebox.showinfo(
+            "Success",
+            f"{counter} Missing 'segmentation' fields have been added with empty lists as default value.",
+        )
 
     def add_missing_is_crowd_field(self):
         """Add missing 'iscrowd' field to annotations."""
