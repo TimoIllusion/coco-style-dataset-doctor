@@ -183,6 +183,14 @@ class CocoDatasetGUI(ctk.CTk):
         )
         self.add_missing_is_crowd_field_button.pack(side="left", padx=10)
 
+        # Add 'iscrowd' field button
+        self.add_missing_is_crowd_field_button = ctk.CTkButton(
+            master=self.control_frame,
+            text="Add Missing 'segmentation' Field",
+            command=self.add_missing_segmentation_field,
+        )
+        self.add_missing_is_crowd_field_button.pack(side="left", padx=10)
+
         # Export Modified Annotations button
         self.export_annotations_button = ctk.CTkButton(
             master=self.control_frame,
@@ -789,6 +797,12 @@ class CocoDatasetGUI(ctk.CTk):
     def apply_oversample(self):
         """Apply oversampling to the dataset."""
         messagebox.showinfo("Info", "Oversampling is not yet implemented.")
+
+    def add_missing_segmentation_field(self):
+        """Add missing 'segmentation' field to annotations."""
+        for annotation in self.coco.dataset.get("annotations", []):
+            if "segmentation" not in annotation:
+                annotation["segmentation"] = []
 
     def add_missing_is_crowd_field(self):
         """Add missing 'iscrowd' field to annotations."""
