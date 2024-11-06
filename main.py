@@ -19,7 +19,7 @@ class CocoDatasetGUI(ctk.CTk):
         super().__init__()
 
         self.title("COCO-Style Dataset Doctor")
-        self.geometry("1600x1000")  # Increased width to accommodate textboxes
+        self.geometry("1700x1000")  # Increased width to accommodate textboxes
 
         # Initialize dataset variables
         self.coco = None
