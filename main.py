@@ -183,13 +183,13 @@ class CocoDatasetGUI(ctk.CTk):
         )
         self.add_missing_is_crowd_field_button.pack(side="left", padx=10)
 
-        # Add 'iscrowd' field button
-        self.add_missing_is_crowd_field_button = ctk.CTkButton(
+        # Add 'segmentation' field button
+        self.add_missing_segmentation_field_button = ctk.CTkButton(
             master=self.control_frame,
             text="Add Missing 'segmentation' Field",
             command=self.add_missing_segmentation_field,
         )
-        self.add_missing_is_crowd_field_button.pack(side="left", padx=10)
+        self.add_missing_segmentation_field_button.pack(side="left", padx=10)
 
         # Export Modified Annotations button
         self.export_annotations_button = ctk.CTkButton(
